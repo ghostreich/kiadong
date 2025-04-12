@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# ✅ 페이지 설정은 최상단에
+# ✅ 페이지 설정
 st.set_page_config(page_title="마인크래프트 건축물 기록", layout="centered")
 
 # CSV 파일 경로
@@ -12,8 +12,13 @@ CSV_FILE = "buildings.csv"
 # CSV 초기화
 def initialize_csv():
     if not os.path.exists(CSV_FILE):
-        df = pd.DataFrame(columns=["이름", "높이", "넓이", "건축 시작 날짜", "건축 완료 날짜", "만든 사람", "링크"])
+        df = pd.DataFrame(columns=[
+            "이름", "높이", "넓이", "건축 시작 날짜", "건축 완료 날짜",
+            "건축 기간", "건축 기간(상세)", "만든 사람", "링크"
+        ])
         df.to_csv(CSV_FILE, index=False, encoding="utf-8-sig")
+
+# 데이터 불러오기 및 저장
 
 def load_data():
     return pd.read_csv(CSV_FILE, encoding="utf-8-sig")
@@ -28,7 +33,7 @@ readonly = (mode == "보기 전용")
 
 if not readonly:
     pw = st.sidebar.text_input("비밀번호 입력", type="password")
-    if pw != "admin1234":
+    if pw != "1234":
         st.sidebar.warning("비밀번호가 틀렸습니다. 보기 전용 모드로 전환됩니다.")
         readonly = True
 
@@ -37,25 +42,32 @@ st.title("🏗️ 마인크래프트 건축물 기록")
 if readonly:
     st.info("🔒 현재는 보기 전용 모드입니다. 건축물을 추가하거나 삭제할 수 없습니다.")
 
-# 데이터 초기화 및 불러오기
+# 초기화 및 데이터 로드
 initialize_csv()
 df = load_data()
+df["건축 시작 날짜"] = pd.to_datetime(df["건축 시작 날짜"], errors='coerce')
+df["건축 완료 날짜"] = pd.to_datetime(df["건축 완료 날짜"], errors='coerce')
 
-# 탭 선택
+# 탭
 탭 = st.radio("메뉴 선택", ["건축물 목록 보기", "건축물 추가하기", "건축물 삭제하기"], horizontal=True)
 
-# 목록 보기 탭
+# 건축물 목록 보기
 if 탭 == "건축물 목록 보기":
     st.subheader("📋 건축물 목록")
 
-    정렬기준 = st.selectbox("정렬 기준을 선택하세요", ["이름", "높이", "넓이", "건축 시작 날짜", "건축 완료 날짜", "만든 사람"], index=0)
+    정렬기준 = st.selectbox("정렬 기준을 선택하세요", [
+        "이름", "높이", "넓이", "건축 시작 날짜", "건축 완료 날짜",
+        "건축 기간", "만든 사람"
+    ])
     정렬방식 = st.radio("정렬 방식", ["오름차순", "내림차순"], horizontal=True)
-    오름차순 = True if 정렬방식 == "오름차순" else False
+    오름차순 = 정렬방식 == "오름차순"
 
     df_sorted = df.copy()
     try:
-        if 정렬기준 in ["높이", "넓이"]:
+        if 정렬기준 in ["높이", "넓이", "건축 기간"]:
             df_sorted[정렬기준] = pd.to_numeric(df_sorted[정렬기준], errors='coerce')
+        elif 정렬기준 in ["건축 시작 날짜", "건축 완료 날짜"]:
+            df_sorted[정렬기준] = pd.to_datetime(df_sorted[정렬기준], errors='coerce')
         df_sorted = df_sorted.sort_values(by=정렬기준, ascending=오름차순)
     except:
         st.warning("정렬에 실패했습니다.")
@@ -68,7 +80,7 @@ if 탭 == "건축물 목록 보기":
     else:
         st.dataframe(df_sorted, use_container_width=True, hide_index=True)
 
-# 추가하기 탭
+# 건축물 추가하기
 elif 탭 == "건축물 추가하기":
     st.subheader("➕ 건축물 추가")
 
@@ -80,6 +92,8 @@ elif 탭 == "건축물 추가하기":
         넓이 = st.number_input("넓이 (블록 수)", min_value=1)
         시작날짜 = st.date_input("건축 시작 날짜", value=datetime.today())
         완료날짜 = st.date_input("건축 완료 날짜", value=datetime.today())
+        건축기간 = (완료날짜 - 시작날짜).days
+        건축기간상세 = st.text_input("건축 기간(상세) (예: 3일 5시간)")
         만든사람 = st.text_input("만든 사람")
         링크 = st.text_input("관련 링크 (선택 사항)")
 
@@ -87,15 +101,21 @@ elif 탭 == "건축물 추가하기":
 
         if 저장버튼:
             if 이름 and 만든사람:
-                새로운행 = pd.DataFrame([[이름, 높이, 넓이, 시작날짜.strftime('%Y-%m-%d'), 완료날짜.strftime('%Y-%m-%d'), 만든사람, 링크]],
-                                       columns=["이름", "높이", "넓이", "건축 시작 날짜", "건축 완료 날짜", "만든 사람", "링크"])
+                새로운행 = pd.DataFrame([[
+                    이름, 높이, 넓이,
+                    시작날짜.strftime('%Y-%m-%d'), 완료날짜.strftime('%Y-%m-%d'),
+                    건축기간, 건축기간상세, 만든사람, 링크
+                ]], columns=[
+                    "이름", "높이", "넓이", "건축 시작 날짜", "건축 완료 날짜",
+                    "건축 기간", "건축 기간(상세)", "만든 사람", "링크"
+                ])
                 df = pd.concat([df, 새로운행], ignore_index=True)
                 save_data(df)
                 st.success("✅ 건축물이 저장되었습니다!")
             else:
                 st.warning("⚠️ 이름과 만든 사람은 반드시 입력해야 합니다.")
 
-# 삭제하기 탭
+# 건축물 삭제하기
 elif 탭 == "건축물 삭제하기":
     st.subheader("❌ 건축물 삭제")
 
