@@ -98,11 +98,10 @@ elif 탭 == "건축물 추가하기":
 
         if 저장버튼:
             if 이름 and 만든사람:
-                건축기간일수 = (완료날짜 - 시작날짜).days
                 새로운행 = pd.DataFrame([[
                     이름, 높이, 넓이, 길이,
                     시작날짜.strftime('%Y-%m-%d'), 완료날짜.strftime('%Y-%m-%d'),
-                    건축기간일수, 건축기간상세, 만든사람, 링크
+                    (완료날짜 - 시작날짜).days, 건축기간상세, 만든사람, 링크
                 ]], columns=[
                     "이름", "높이", "넓이", "길이", "건축 시작 날짜", "건축 완료 날짜",
                     "건축 기간", "건축 기간(상세)", "만든 사람", "링크"
@@ -121,15 +120,14 @@ elif 탭 == "건축물 삭제하기":
         st.warning("이 모드에서는 건축물을 삭제할 수 없습니다.")
     else:
         이름검색 = st.text_input("삭제할 건축물 이름 검색")
-        삭제후보 = df[df["이름"].str.contains(이름검색, na=False, case=False)] if 이름검색 else df.head(1000)
+        삭제후보 = df[df["이름"].str.contains(이름검색, na=False)] if 이름검색 else df
 
-        if 삭제후보.empty:
-            st.info("🔍 일치하는 건축물이 없습니다.")
-        else:
-            선택 = st.selectbox("삭제할 건축물을 선택하세요", 삭제후보["이름"].tolist())
+        선택 = st.selectbox("삭제할 건축물을 선택하세요", 삭제후보["이름"] if not 삭제후보.empty else ["없음"])
 
+        if 선택 != "없음":
             if st.checkbox("정말 삭제하시겠습니까?"):
                 if st.button("삭제하기"):
                     df = df[df["이름"] != 선택]
                     save_data(df)
                     st.success(f"🗑️ '{선택}' 건축물이 삭제되었습니다.")
+
