@@ -13,7 +13,7 @@ CSV_FILE = "buildings.csv"
 def initialize_csv():
     if not os.path.exists(CSV_FILE):
         df = pd.DataFrame(columns=[
-            "이름", "높이", "넓이", "건축 시작 날짜", "건축 완료 날짜",
+            "이름", "높이", "넓이", "길이", "건축 시작 날짜", "건축 완료 날짜",
             "건축 기간", "건축 기간(상세)", "만든 사람", "링크"
         ])
         df.to_csv(CSV_FILE, index=False, encoding="utf-8-sig")
@@ -45,8 +45,6 @@ if readonly:
 # 초기화 및 데이터 로드
 initialize_csv()
 df = load_data()
-df["건축 시작 날짜"] = pd.to_datetime(df["건축 시작 날짜"], errors='coerce')
-df["건축 완료 날짜"] = pd.to_datetime(df["건축 완료 날짜"], errors='coerce')
 
 # 탭
 탭 = st.radio("메뉴 선택", ["건축물 목록 보기", "건축물 추가하기", "건축물 삭제하기"], horizontal=True)
@@ -56,7 +54,7 @@ if 탭 == "건축물 목록 보기":
     st.subheader("📋 건축물 목록")
 
     정렬기준 = st.selectbox("정렬 기준을 선택하세요", [
-        "이름", "높이", "넓이", "건축 시작 날짜", "건축 완료 날짜",
+        "이름", "높이", "넓이", "길이", "건축 시작 날짜", "건축 완료 날짜",
         "건축 기간", "만든 사람"
     ])
     정렬방식 = st.radio("정렬 방식", ["오름차순", "내림차순"], horizontal=True)
@@ -64,10 +62,8 @@ if 탭 == "건축물 목록 보기":
 
     df_sorted = df.copy()
     try:
-        if 정렬기준 in ["높이", "넓이", "건축 기간"]:
+        if 정렬기준 in ["높이", "넓이", "길이", "건축 기간"]:
             df_sorted[정렬기준] = pd.to_numeric(df_sorted[정렬기준], errors='coerce')
-        elif 정렬기준 in ["건축 시작 날짜", "건축 완료 날짜"]:
-            df_sorted[정렬기준] = pd.to_datetime(df_sorted[정렬기준], errors='coerce')
         df_sorted = df_sorted.sort_values(by=정렬기준, ascending=오름차순)
     except:
         st.warning("정렬에 실패했습니다.")
@@ -90,9 +86,10 @@ elif 탭 == "건축물 추가하기":
         이름 = st.text_input("건축물 이름")
         높이 = st.number_input("높이 (블록 수)", min_value=1)
         넓이 = st.number_input("넓이 (블록 수)", min_value=1)
+        길이 = st.number_input("길이 (블록 수)", min_value=1)
         시작날짜 = st.date_input("건축 시작 날짜", value=datetime.today())
         완료날짜 = st.date_input("건축 완료 날짜", value=datetime.today())
-        건축기간 = (완료날짜 - 시작날짜).days
+        건축기간 = st.text_input("건축 기간 (며칠)", disabled=True)
         건축기간상세 = st.text_input("건축 기간(상세) (예: 3일 5시간)")
         만든사람 = st.text_input("만든 사람")
         링크 = st.text_input("관련 링크 (선택 사항)")
@@ -101,12 +98,13 @@ elif 탭 == "건축물 추가하기":
 
         if 저장버튼:
             if 이름 and 만든사람:
+                건축기간일수 = (완료날짜 - 시작날짜).days
                 새로운행 = pd.DataFrame([[
-                    이름, 높이, 넓이,
+                    이름, 높이, 넓이, 길이,
                     시작날짜.strftime('%Y-%m-%d'), 완료날짜.strftime('%Y-%m-%d'),
-                    건축기간, 건축기간상세, 만든사람, 링크
+                    건축기간일수, 건축기간상세, 만든사람, 링크
                 ]], columns=[
-                    "이름", "높이", "넓이", "건축 시작 날짜", "건축 완료 날짜",
+                    "이름", "높이", "넓이", "길이", "건축 시작 날짜", "건축 완료 날짜",
                     "건축 기간", "건축 기간(상세)", "만든 사람", "링크"
                 ])
                 df = pd.concat([df, 새로운행], ignore_index=True)
@@ -123,11 +121,13 @@ elif 탭 == "건축물 삭제하기":
         st.warning("이 모드에서는 건축물을 삭제할 수 없습니다.")
     else:
         이름검색 = st.text_input("삭제할 건축물 이름 검색")
-        삭제후보 = df[df["이름"].str.contains(이름검색, na=False)] if 이름검색 else df
+        삭제후보 = df[df["이름"].str.contains(이름검색, na=False, case=False)] if 이름검색 else df.head(1000)
 
-        선택 = st.selectbox("삭제할 건축물을 선택하세요", 삭제후보["이름"] if not 삭제후보.empty else ["없음"])
+        if 삭제후보.empty:
+            st.info("🔍 일치하는 건축물이 없습니다.")
+        else:
+            선택 = st.selectbox("삭제할 건축물을 선택하세요", 삭제후보["이름"].tolist())
 
-        if 선택 != "없음":
             if st.checkbox("정말 삭제하시겠습니까?"):
                 if st.button("삭제하기"):
                     df = df[df["이름"] != 선택]
